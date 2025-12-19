@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Users, Video, BarChart3, Settings, TrendingUp, TrendingDown, CheckCircle, UserCog, FileVideo, FileText, ArrowRight, LogOut, BarChart } from 'lucide-react';
+import { Users, Video, BarChart3, Settings, TrendingUp, TrendingDown, CheckCircle, UserCog, FileVideo, FileText, ArrowRight, LogOut, BarChart, Activity } from 'lucide-react';
+import Chatbot from '@/components/Chatbot';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -14,7 +15,7 @@ export default function AdminDashboard() {
     totalVideos: 0,
     totalZones: 0
   });
-  const [analysesCount, setAnalysesCount] = useState(15);
+  const [analysesCount, setAnalysesCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,7 +30,6 @@ export default function AdminDashboard() {
 
     setUsername(user || 'Admin');
     setRole(userRole || '');
-    setAnalysesCount(Math.floor(Math.random() * 11) + 10);
     fetchStats();
   }, [router]);
 
@@ -65,11 +65,15 @@ export default function AdminDashboard() {
         }
       }
       
+      const analysesResponse = await fetch('http://127.0.0.1:8000/api/analysis/count/total');
+      const analysesData = await analysesResponse.json();
+      
       setStats({
         totalUsers: users.length,
         totalVideos,
         totalZones
       });
+      setAnalysesCount(analysesData.total);
     } catch (error) {
       console.error('Error fetching stats:', error);
     } finally {
@@ -172,8 +176,8 @@ export default function AdminDashboard() {
             <KPICard 
               icon={<BarChart3 size={32} />}
               title="Analyses Run"
-              value={analysesCount.toString()}
-              trend="Random 10-20"
+              value={loading ? '...' : analysesCount.toString()}
+              trend="Total analyses"
               trendUp={null}
             />
           </motion.div>
@@ -203,20 +207,13 @@ export default function AdminDashboard() {
               onClick={() => router.push('/admin/user-management')}
             />
           </motion.div>
-          <motion.div variants={itemVariants}>
-            <ManagementCard
-              icon={<Settings size={32} />}
-              title="System Settings"
-              description="Configure system parameters and integrations"
-              onClick={() => {}}
-            />
-          </motion.div>
+
           <motion.div variants={itemVariants}>
             <ManagementCard
               icon={<FileVideo size={32} />}
               title="Video Management"
               description="Monitor all uploaded videos and archives"
-              onClick={() => {}}
+              onClick={() => router.push('/admin/video-management')}
             />
           </motion.div>
           <motion.div variants={itemVariants}>
@@ -224,11 +221,24 @@ export default function AdminDashboard() {
               icon={<FileText size={32} />}
               title="Reports"
               description="Generate and view detailed performance reports"
-              onClick={() => {}}
+              onClick={() => router.push('/admin/reports')}
+            />
+          </motion.div>
+          <motion.div variants={itemVariants}>
+            <ManagementCard
+              icon={<BarChart3 size={32} />}
+              title="Crowd Data"
+              description="View all crowd count data and analytics"
+              onClick={() => router.push('/admin/crowd-data')}
             />
           </motion.div>
         </motion.div>
       </main>
+      
+      {/* Chatbot - Fixed positioning */}
+      <div className="fixed bottom-6 right-6 z-[9999]">
+        <Chatbot />
+      </div>
     </div>
   );
 }

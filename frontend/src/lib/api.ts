@@ -106,6 +106,19 @@ export const api = {
     return response.json();
   },
 
+  updateUser: async (username: string, data: { email?: string; role?: string; password?: string }) => {
+    const response = await fetch(`${API_BASE_URL}/admin/update_user/${username}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to update user');
+    }
+    return response.json();
+  },
+
   // User Account Management
   changeUsername: async (username: string, newUsername: string) => {
     const response = await fetch(`${API_BASE_URL}/change_username?username=${username}&new_username=${newUsername}`, {

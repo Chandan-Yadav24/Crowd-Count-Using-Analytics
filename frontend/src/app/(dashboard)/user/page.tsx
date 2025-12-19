@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Users, Upload, PenTool, BarChart3, ArrowRight, LogOut, Settings } from 'lucide-react';
+import { Users, Upload, PenTool, BarChart3, ArrowRight, LogOut, Settings, LineChart } from 'lucide-react';
+import UserChatbot from '@/components/UserChatbot';
 
 export default function UserDashboard() {
   const router = useRouter();
@@ -70,6 +71,14 @@ export default function UserDashboard() {
       action: 'View Dashboard',
       path: '/user/analytics',
       color: 'blue'
+    },
+    {
+      icon: LineChart,
+      title: 'Analytics Archive',
+      description: 'View live & archived analytics with charts and detailed insights.',
+      action: 'View Archive',
+      path: '/user/analytics-archive',
+      color: 'blue'
     }
   ];
 
@@ -79,7 +88,7 @@ export default function UserDashboard() {
       <header className="border-b border-gray-200 shadow-sm sticky top-0 bg-white/80 backdrop-blur-sm z-10">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-            <motion.div 
+            <motion.div
               className="flex items-center space-x-3"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -88,8 +97,8 @@ export default function UserDashboard() {
               <Users className="text-blue-600" size={32} />
               <h1 className="text-xl font-bold tracking-tight text-gray-900">Crowd Count AI</h1>
             </motion.div>
-            
-            <motion.nav 
+
+            <motion.nav
               className="flex items-center space-x-4"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -122,7 +131,7 @@ export default function UserDashboard() {
       {/* Main Content */}
       <main className="flex-grow">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
-          <motion.h2 
+          <motion.h2
             className="text-4xl font-bold tracking-tight text-gray-900 mb-10"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -130,9 +139,9 @@ export default function UserDashboard() {
           >
             User Dashboard
           </motion.h2>
-          
-          <motion.div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+
+          <motion.div
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8"
             variants={containerVariants}
             initial="hidden"
             animate="visible"
@@ -148,16 +157,16 @@ export default function UserDashboard() {
                   className="group block p-8 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer"
                 >
                   <div className="flex flex-col h-full">
-                    <motion.div 
+                    <motion.div
                       className="flex items-center justify-center w-16 h-16 bg-blue-50 rounded-lg mb-6 group-hover:bg-blue-600 transition-colors duration-300"
                       whileHover={{ scale: 1.1, rotate: 5 }}
                     >
                       <Icon className="text-blue-600 group-hover:text-white transition-colors duration-300" size={32} />
                     </motion.div>
-                    
+
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">{card.title}</h3>
                     <p className="text-gray-600 mb-4 flex-grow">{card.description}</p>
-                    
+
                     <div className="mt-auto pt-4">
                       <span className="font-medium text-blue-600 flex items-center group-hover:text-blue-700">
                         {card.action}
@@ -182,10 +191,15 @@ export default function UserDashboard() {
       <footer className="bg-gray-100 border-t border-gray-200 mt-auto">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-center text-sm text-gray-600">
-            © 2024 Crowd Count AI. All Rights Reserved.
+            © 2025 Crowd Count AI. All Rights Reserved.
           </p>
         </div>
       </footer>
+
+      {/* Chatbot */}
+      <div className="fixed bottom-6 right-6 z-[9999]">
+        <UserChatbot />
+      </div>
     </div>
   );
 }

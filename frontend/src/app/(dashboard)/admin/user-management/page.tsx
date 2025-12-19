@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Trash2, UserPlus, LayoutDashboard, Users, BarChart, Settings as SettingsIcon, LogOut, Search, Edit, ChevronLeft, ChevronRight, Eye, EyeOff, AlertTriangle, X } from 'lucide-react';
+import { Trash2, UserPlus, LayoutDashboard, Users, FileVideo, FileText, LogOut, Search, Edit, ChevronLeft, ChevronRight, Eye, EyeOff, AlertTriangle, X, BarChart3 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { User } from '@/types';
 
@@ -21,8 +21,11 @@ export default function UserManagement() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editFormData, setEditFormData] = useState({ email: '', role: 'user', password: '' });
 
-  const filteredUsers = users.filter(user => 
+  const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -55,17 +58,17 @@ export default function UserManagement() {
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
+
     if (formData.password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
+
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters');
       return;
     }
-    
+
     try {
       await api.addUser(formData.username, formData.email, formData.password, formData.role);
       setFormData({ username: '', email: '', password: '', role: 'user' });
@@ -90,6 +93,36 @@ export default function UserManagement() {
     }
   };
 
+  const handleEditClick = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({ email: user.email, role: user.role, password: '' });
+    setShowEditForm(true);
+  };
+
+  const handleEditUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setError('');
+
+    try {
+      const updateData: any = { email: editFormData.email, role: editFormData.role };
+      if (editFormData.password) {
+        if (editFormData.password.length < 8) {
+          setError('Password must be at least 8 characters');
+          return;
+        }
+        updateData.password = editFormData.password;
+      }
+      await api.updateUser(editingUser.username, updateData);
+      setShowEditForm(false);
+      setEditingUser(null);
+      setEditFormData({ email: '', role: 'user', password: '' });
+      loadUsers();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
@@ -105,7 +138,7 @@ export default function UserManagement() {
             </div>
           </div>
         </div>
-        
+
         <nav className="flex-grow p-4">
           <div className="flex flex-col gap-2">
             <motion.button
@@ -126,24 +159,35 @@ export default function UserManagement() {
               <p className="text-blue-600 text-sm font-medium">User Management</p>
             </motion.button>
             <motion.button
+              onClick={() => router.push('/admin/video-management')}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
               whileHover={{ x: 4 }}
               suppressHydrationWarning
             >
-              <BarChart size={20} className="text-gray-800" />
-              <p className="text-gray-800 text-sm font-medium">Crowd Data</p>
+              <FileVideo size={20} className="text-gray-800" />
+              <p className="text-gray-800 text-sm font-medium">Video Management</p>
             </motion.button>
             <motion.button
+              onClick={() => router.push('/admin/reports')}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
               whileHover={{ x: 4 }}
               suppressHydrationWarning
             >
-              <SettingsIcon size={20} className="text-gray-800" />
-              <p className="text-gray-800 text-sm font-medium">Settings</p>
+              <FileText size={20} className="text-gray-800" />
+              <p className="text-gray-800 text-sm font-medium">Reports</p>
+            </motion.button>
+            <motion.button
+              onClick={() => router.push('/admin/crowd-data')}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+              whileHover={{ x: 4 }}
+              suppressHydrationWarning
+            >
+              <BarChart3 size={20} className="text-gray-800" />
+              <p className="text-gray-800 text-sm font-medium">Crowd Data</p>
             </motion.button>
           </div>
         </nav>
-        
+
         <div className="p-4 border-t border-gray-200">
           <motion.button
             onClick={() => {
@@ -165,7 +209,10 @@ export default function UserManagement() {
         <div className="p-8">
           {/* Page Heading */}
           <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-            <h1 className="text-gray-900 text-4xl font-black tracking-tight">User Management</h1>
+            <div>
+              <h1 className="text-gray-900 text-4xl font-black tracking-tight">User Management</h1>
+              <p className="text-gray-600 text-sm mt-1">Manage user accounts and permissions</p>
+            </div>
             <motion.button
               onClick={() => setShowAddForm(!showAddForm)}
               className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-lg hover:bg-blue-700 transition-colors"
@@ -178,6 +225,95 @@ export default function UserManagement() {
             </motion.button>
           </div>
 
+          {/* Edit User Form */}
+          {showEditForm && editingUser && (
+            <motion.div
+              className="bg-white rounded-xl border border-gray-200 p-8 mb-6 max-w-3xl"
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="mb-6">
+                <h3 className="text-gray-900 text-2xl font-bold">Edit User</h3>
+                <p className="text-gray-500 text-base mt-1">Update user information for {editingUser.username}</p>
+              </div>
+
+              <form onSubmit={handleEditUser} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2">
+                  <label className="flex flex-col w-full">
+                    <p className="text-gray-900 text-sm font-medium pb-2">Email Address</p>
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      className="w-full h-12 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      required
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="flex flex-col w-full">
+                    <p className="text-gray-900 text-sm font-medium pb-2">New Password (leave blank to keep current)</p>
+                    <input
+                      type="password"
+                      value={editFormData.password}
+                      onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                      placeholder="Leave blank to keep current password"
+                      className="w-full h-12 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                  </label>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="flex flex-col w-full">
+                    <p className="text-gray-900 text-sm font-medium pb-2">Role</p>
+                    <select
+                      value={editFormData.role}
+                      onChange={(e) => setEditFormData({ ...editFormData, role: e.target.value })}
+                      className="w-full h-12 px-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    >
+                      <option value="user">Standard User</option>
+                      <option value="admin">Administrator</option>
+                    </select>
+                  </label>
+                </div>
+
+                {error && (
+                  <div className="md:col-span-2">
+                    <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+                      {error}
+                    </div>
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex justify-end gap-3 pt-4">
+                  <motion.button
+                    type="button"
+                    onClick={() => {
+                      setShowEditForm(false);
+                      setEditingUser(null);
+                      setEditFormData({ email: '', role: 'user', password: '' });
+                      setError('');
+                    }}
+                    className="px-6 py-2.5 text-sm font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    type="submit"
+                    className="px-6 py-2.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Save Changes
+                  </motion.button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
           {/* Add User Form */}
           {showAddForm && (
             <motion.div
@@ -189,9 +325,8 @@ export default function UserManagement() {
                 <h3 className="text-gray-900 text-2xl font-bold">Add New User</h3>
                 <p className="text-gray-500 text-base mt-1">Create a profile for a new user or administrator.</p>
               </div>
-              
+
               <form onSubmit={handleAddUser} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Full Name (Username) */}
                 <div className="md:col-span-2">
                   <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium pb-2">Full Name</p>
@@ -206,7 +341,6 @@ export default function UserManagement() {
                   </label>
                 </div>
 
-                {/* Email Address */}
                 <div className="md:col-span-2">
                   <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium pb-2">Email Address</p>
@@ -221,7 +355,6 @@ export default function UserManagement() {
                   </label>
                 </div>
 
-                {/* Password */}
                 <div>
                   <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium pb-2">Password</p>
@@ -245,7 +378,6 @@ export default function UserManagement() {
                   </label>
                 </div>
 
-                {/* Confirm Password */}
                 <div>
                   <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium pb-2">Confirm Password</p>
@@ -269,7 +401,6 @@ export default function UserManagement() {
                   </label>
                 </div>
 
-                {/* Role Selection */}
                 <div className="md:col-span-2">
                   <label className="flex flex-col w-full">
                     <p className="text-gray-900 text-sm font-medium pb-2">Role</p>
@@ -284,7 +415,6 @@ export default function UserManagement() {
                   </label>
                 </div>
 
-                {/* Error Message */}
                 {error && (
                   <div className="md:col-span-2">
                     <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
@@ -293,7 +423,6 @@ export default function UserManagement() {
                   </div>
                 )}
 
-                {/* Action Buttons */}
                 <div className="md:col-span-2 flex justify-end gap-3 pt-4">
                   <motion.button
                     type="button"
@@ -393,7 +522,12 @@ export default function UserManagement() {
                         </td>
                         <td className="px-4 py-3 text-sm font-medium">
                           <div className="flex items-center gap-2">
-                            <button className="text-blue-600 hover:text-blue-800 transition-colors">
+                            <button
+                              onClick={() => handleEditClick(user)}
+                              disabled={user.username === 'superadmin'}
+                              className={user.username === 'superadmin' ? 'text-gray-300 cursor-not-allowed' : 'text-blue-600 hover:text-blue-800 transition-colors'}
+                              title={user.username === 'superadmin' ? 'Cannot edit superadmin' : ''}
+                            >
                               <Edit size={18} />
                             </button>
                             {user.username !== 'superadmin' && (
@@ -438,14 +572,13 @@ export default function UserManagement() {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && userToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4">
-          <motion.div 
+          <motion.div
             className="relative flex flex-col w-full max-w-md bg-white rounded-xl shadow-2xl"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.2 }}
           >
-            {/* Close Button */}
-            <button 
+            <button
               onClick={() => {
                 setShowDeleteModal(false);
                 setUserToDelete(null);
@@ -455,38 +588,32 @@ export default function UserManagement() {
               <X size={24} />
             </button>
 
-            {/* Modal Content */}
             <div className="flex flex-col items-center p-6 sm:p-8 text-center">
-              {/* Icon */}
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 text-red-600 mb-4">
                 <AlertTriangle size={28} />
               </div>
 
-              {/* Headline */}
               <h1 className="text-gray-900 tracking-tight text-2xl font-bold leading-tight pb-2">
                 Delete User?
               </h1>
 
-              {/* Body Text */}
               <p className="text-gray-600 text-base font-normal leading-normal pb-4">
                 Are you sure you want to permanently delete this user? This action cannot be undone.
               </p>
 
-              {/* User Identifier */}
               <div className="w-full bg-gray-50 border border-gray-200 rounded-lg p-4 my-4">
                 <p className="text-sm font-medium text-gray-500">{userToDelete.username}</p>
                 <p className="text-sm text-gray-700">{userToDelete.email}</p>
               </div>
 
-              {/* Button Group */}
               <div className="flex w-full flex-col sm:flex-row-reverse gap-3 pt-4">
-                <button 
+                <button
                   onClick={handleDeleteUser}
                   className="flex min-w-[84px] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-red-600 text-white text-sm font-bold leading-normal tracking-wide hover:bg-red-700 focus:ring-4 focus:ring-red-300"
                 >
                   <span className="truncate">Yes, Delete</span>
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     setShowDeleteModal(false);
                     setUserToDelete(null);

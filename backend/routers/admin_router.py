@@ -45,3 +45,21 @@ def delete_user(username: str, db: Session = Depends(database.get_db)):
     db.delete(user)
     db.commit()
     return {"message": f"User {username} deleted successfully"}
+
+
+# --- update user ---
+@router.put("/update_user/{username}")
+def update_user(username: str, request: schemas.UserUpdate, db: Session = Depends(database.get_db)):
+    user = db.execute(select(models.User).where(models.User.username == username)).scalar()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if request.email:
+        user.email = request.email
+    if request.role:
+        user.role = models.UserRole.admin if request.role == "admin" else models.UserRole.user
+    if request.password:
+        user.password_hash = auth.hash_password(request.password)
+    
+    db.commit()
+    return {"message": f"User {username} updated successfully"}

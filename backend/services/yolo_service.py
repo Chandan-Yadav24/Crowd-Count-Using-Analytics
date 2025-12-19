@@ -1,8 +1,10 @@
 import cv2
 import numpy as np
-from typing import List, Dict
+from typing import List, Dict, Generator
 import torch
 import imageio_ffmpeg
+import base64
+import json
 
 # Monkey patch torch.load to use weights_only=False for YOLO
 _original_torch_load = torch.load
@@ -15,12 +17,159 @@ class YOLOService:
     def __init__(self):
         self.model = None
         self.progress = {}
+        self.live_counts = {}
     
     def _load_model(self):
         """Lazy load YOLO model"""
         if self.model is None:
             from ultralytics import YOLO
             self.model = YOLO('yolov8n.pt')
+    
+    def analyze_video_stream(self, video_path: str, zones: List[Dict], output_path: str = None) -> Generator[bytes, None, None]:
+        """Ultra-fast real-time streaming - process every frame"""
+        self._load_model()
+        
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            yield b"data: {\"error\": \"Cannot open video file\"}\n\n"
+            return
+        
+        fps = int(cap.get(cv2.CAP_PROP_FPS))
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        # Resize for faster processing
+        process_width = 640
+        process_height = 480
+        
+        # Scale zones to processing resolution
+        scaled_zones = []
+        for zone in zones:
+            scaled_coords = []
+            for x, y in zone['coordinates']:
+                scaled_x = int((x / 640) * process_width)
+                scaled_y = int((y / 360) * process_height)
+                scaled_coords.append([scaled_x, scaled_y])
+            scaled_zones.append({
+                'id': zone['id'],
+                'label': zone['label'],
+                'coordinates': scaled_coords
+            })
+        
+        # Setup video writer (background)
+        writer = None
+        if output_path:
+            import imageio
+            writer = imageio.get_writer(output_path, fps=fps, codec='libx264', pixelformat='yuv420p')
+        
+        zone_max_counts = {zone['id']: 0 for zone in scaled_zones}
+        frame_count = 0
+        frame_data = []
+        
+        # JPEG encoding params for speed
+        encode_params = [cv2.IMWRITE_JPEG_QUALITY, 60]
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            frame_count += 1
+            
+            # Resize for faster processing
+            frame_resized = cv2.resize(frame, (process_width, process_height))
+            
+            # Run YOLO detection (fast)
+            results = self.model(frame_resized, classes=[0], verbose=False)
+            
+            # Draw zones
+            for zone in scaled_zones:
+                pts = np.array(zone['coordinates'], np.int32).reshape((-1, 1, 2))
+                cv2.polylines(frame_resized, [pts], True, (0, 255, 0), 2)
+                cv2.putText(frame_resized, zone['label'], tuple(zone['coordinates'][0]), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # Count people in zones
+            frame_zone_counts = {zone['id']: 0 for zone in scaled_zones}
+            
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    center_x = int((x1 + x2) / 2)
+                    center_y = int((y1 + y2) / 2)
+                    
+                    cv2.rectangle(frame_resized, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
+                    cv2.putText(frame_resized, 'Person', (int(x1), int(y1) - 10), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+                    
+                    for zone in scaled_zones:
+                        if self.point_in_polygon((center_x, center_y), zone['coordinates']):
+                            frame_zone_counts[zone['id']] += 1
+                            cv2.circle(frame_resized, (center_x, center_y), 4, (0, 0, 255), -1)
+                            break
+            
+            # Update max counts
+            for zone_id, count in frame_zone_counts.items():
+                if count > zone_max_counts[zone_id]:
+                    zone_max_counts[zone_id] = count
+            
+            # Save original frame to video (background task)
+            if writer:
+                rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                writer.append_data(rgb_frame)
+            
+            # Store frame data
+            frame_time = frame_count / fps
+            frame_data.append({
+                'time': round(frame_time, 2),
+                'counts': {zone['label']: frame_zone_counts[zone['id']] for zone in scaled_zones}
+            })
+            
+            # Encode and send EVERY frame for real-time streaming
+            _, buffer = cv2.imencode('.jpg', frame_resized, encode_params)
+            frame_base64 = base64.b64encode(buffer).decode('utf-8')
+            counts_data = {zone['label']: frame_zone_counts[zone['id']] for zone in scaled_zones}
+            
+            data = json.dumps({
+                'frame': frame_base64,
+                'counts': counts_data,
+                'progress': int((frame_count / total_frames) * 100),
+                'frame_number': frame_count,
+                'total_frames': total_frames
+            })
+            yield f"data: {data}\n\n".encode('utf-8')
+        
+        cap.release()
+        if writer:
+            writer.close()
+        
+        # Save frame data
+        frame_data_path = None
+        if output_path:
+            frame_data_path = output_path.replace('.mp4', '_frames.json')
+            with open(frame_data_path, 'w') as f:
+                json.dump(frame_data, f)
+        
+        # Send final summary
+        zone_results = []
+        total_count = 0
+        for zone in scaled_zones:
+            count = zone_max_counts[zone['id']]
+            zone_results.append({
+                'zone_id': zone['id'],
+                'zone_label': zone['label'],
+                'count': count
+            })
+            total_count += count
+        
+        yield f"data: {json.dumps({
+            'complete': True,
+            'total_count': total_count,
+            'zone_counts': zone_results,
+            'output_video_path': output_path,
+            'frame_data_path': frame_data_path
+        })}\n\n"
     
     def point_in_polygon(self, point, polygon):
         """Check if point is inside polygon"""
@@ -80,6 +229,7 @@ class YOLOService:
         total_people = 0
         frame_count = 0
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        frame_data = []  # Store frame-by-frame counts
         
         # Store progress
         progress_key = f"video_{video_path}"
@@ -129,6 +279,13 @@ class YOLOService:
                             cv2.circle(frame, (center_x, center_y), 5, (0, 0, 255), -1)
                             break
             
+            # Store frame data with timestamp
+            frame_time = frame_count / fps
+            frame_data.append({
+                'time': round(frame_time, 2),
+                'counts': {zone['label']: frame_zone_counts[zone['id']] for zone in scaled_zones}
+            })
+            
             # Update max counts
             for zone_id, count in frame_zone_counts.items():
                 if count > zone_max_counts[zone_id]:
@@ -153,13 +310,92 @@ class YOLOService:
             })
             total_count += count
         
+        # Save frame data as JSON
+        import json
+        frame_data_path = output_path.replace('.mp4', '_frames.json')
+        with open(frame_data_path, 'w') as f:
+            json.dump(frame_data, f)
+        
         print(f"Detection complete! Results saved to {output_path}")
         
         return {
             'total_count': total_count,
             'zone_counts': zone_results,
-            'output_video': output_path
+            'output_video': output_path,
+            'frame_data_path': frame_data_path
         }
+
+    def analyze_video_mjpeg(self, video_path: str, zones: List[Dict]) -> Generator[bytes, None, None]:
+        """MJPEG streaming - process every frame and yield bytes"""
+        self._load_model()
+        
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return
+        
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Resize for faster processing
+        process_width = 640
+        process_height = 480
+        
+        # Scale zones to processing resolution
+        scaled_zones = []
+        for zone in zones:
+            scaled_coords = []
+            for x, y in zone['coordinates']:
+                scaled_x = int((x / 640) * process_width)
+                scaled_y = int((y / 360) * process_height)
+                scaled_coords.append([scaled_x, scaled_y])
+            scaled_zones.append({
+                'id': zone['id'],
+                'label': zone['label'],
+                'coordinates': scaled_coords
+            })
+            
+        encode_params = [cv2.IMWRITE_JPEG_QUALITY, 70]
+        
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            
+            # Resize for faster processing
+            frame_resized = cv2.resize(frame, (process_width, process_height))
+            
+            # Run YOLO detection
+            results = self.model(frame_resized, classes=[0], verbose=False)
+            
+            # Draw zones
+            for zone in scaled_zones:
+                pts = np.array(zone['coordinates'], np.int32).reshape((-1, 1, 2))
+                cv2.polylines(frame_resized, [pts], True, (0, 255, 0), 2)
+                cv2.putText(frame_resized, zone['label'], tuple(zone['coordinates'][0]), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            
+            # Count people and draw boxes
+            for result in results:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    center_x = int((x1 + x2) / 2)
+                    center_y = int((y1 + y2) / 2)
+                    
+                    cv2.rectangle(frame_resized, (int(x1), int(y1)), (int(x2), int(y2)), (255, 0, 0), 2)
+                    
+                    for zone in scaled_zones:
+                        if self.point_in_polygon((center_x, center_y), zone['coordinates']):
+                            cv2.circle(frame_resized, (center_x, center_y), 4, (0, 0, 255), -1)
+                            break
+            
+            # Encode frame
+            _, buffer = cv2.imencode('.jpg', frame_resized, encode_params)
+            frame_bytes = buffer.tobytes()
+            
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        cap.release()
 
 # Singleton instance
 yolo_service = YOLOService()

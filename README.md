@@ -83,7 +83,7 @@ crowd_count_project/
 
 1. Clone the repository:
 ```bash
-git clone <repository-url>
+git clone https://github.com/Chandan-Yadav24/Crowd-Count-Using-Analytics.git
 cd crowd_count_project
 ```
 

@@ -1,6 +1,6 @@
 # Crowd Count Using Analytics
 
-A full-stack application for real-time crowd counting and analysis using YOLOv8 object detection. The system allows users to upload videos, define detection zones, and analyze crowd density with detailed analytics.
+A full-stack application for real-time crowd counting and analysis using YOLOv8 object detection. The system allows users to upload videos, define detection zones, analyze crowd density with detailed analytics, and interact with an AI chatbot for insights.
 
 ## Features
 
@@ -9,6 +9,8 @@ A full-stack application for real-time crowd counting and analysis using YOLOv8 
 - **Zone Drawing**: Define custom detection zones on videos
 - **Real-time Detection**: YOLOv8-based crowd detection and counting
 - **Analytics Dashboard**: View crowd statistics and trends
+- **AI Chatbot**: GROQ-powered chatbot for analysis insights and queries
+- **Data Export**: Export analysis results in multiple formats
 - **Admin Panel**: User management and system monitoring
 - **Responsive UI**: Modern Next.js frontend with Tailwind CSS
 
@@ -21,6 +23,7 @@ A full-stack application for real-time crowd counting and analysis using YOLOv8 
 - **Authentication**: JWT with python-jose
 - **Object Detection**: YOLOv8 (Ultralytics)
 - **Video Processing**: OpenCV, imageio
+- **AI Integration**: GROQ API for chatbot
 - **Server**: Uvicorn
 
 ### Frontend
@@ -40,11 +43,14 @@ crowd_count_project/
 │   │   ├── config.py          # Configuration settings
 │   │   └── security.py        # Security utilities
 │   ├── routers/
-│   │   ├── user_router.py     # User endpoints
-│   │   ├── admin_router.py    # Admin endpoints
-│   │   ├── video_router.py    # Video upload/management
-│   │   ├── zone_router.py     # Zone management
-│   │   └── analysis_router.py # Analytics endpoints
+│   │   ├── user_router.py        # User endpoints
+│   │   ├── admin_router.py       # Admin endpoints
+│   │   ├── video_router.py       # Video upload/management
+│   │   ├── zone_router.py        # Zone management
+│   │   ├── analysis_router.py    # Analytics endpoints
+│   │   ├── chatbot_router.py     # Chatbot endpoints
+│   │   ├── user_chatbot_router.py # User chatbot interactions
+│   │   └── export_router.py      # Data export endpoints
 │   ├── services/
 │   │   └── yolo_service.py    # YOLOv8 detection service
 │   ├── auth.py                # Authentication logic
@@ -78,6 +84,7 @@ crowd_count_project/
 - Node.js 18+
 - MySQL 8.0+
 - Git
+- GROQ API Key (for chatbot functionality)
 
 ### Backend Setup
 
@@ -101,6 +108,7 @@ pip install -r requirements.txt
 4. Configure environment variables in `.env`:
 ```
 DATABASE_URL=mysql+pymysql://root:root@localhost:3306/crowd_db
+GROQ_API_KEY=your_groq_api_key
 ```
 
 5. Start the backend server:
@@ -170,6 +178,14 @@ CREATE DATABASE crowd_db;
 - `GET /analysis/{video_id}` - Get analysis results
 - `POST /analysis/{video_id}/process` - Process video
 
+### Chatbot
+- `POST /chatbot/query` - Send query to AI chatbot
+- `GET /chatbot/history` - Get chat history
+
+### Export
+- `GET /export/{video_id}` - Export analysis results
+- `POST /export/batch` - Batch export multiple analyses
+
 ### Admin
 - `GET /admin/users` - List all users
 - `DELETE /admin/users/{user_id}` - Delete user
@@ -182,6 +198,8 @@ CREATE DATABASE crowd_db;
 3. **Define Zones**: Draw detection zones on the video frame
 4. **Process Video**: Start the analysis process
 5. **View Analytics**: Check the analytics dashboard for results
+6. **Chat with AI**: Use the chatbot to get insights about your analysis
+7. **Export Results**: Export analysis data in your preferred format
 
 ## Configuration
 
@@ -243,6 +261,11 @@ npm start
 - Check available disk space in `data/` directory
 - Verify video format is supported (MP4, AVI, MOV)
 
+### Chatbot Issues
+- Verify GROQ_API_KEY is set in `.env`
+- Check GROQ API rate limits
+- Ensure internet connection for API calls
+
 ### Frontend Connection Issues
 - Ensure backend is running on `http://localhost:8000`
 - Check CORS configuration in `backend/main.py`
@@ -262,6 +285,7 @@ npm start
 - CORS configured for specific origins
 - Input validation on all endpoints
 - SQL injection prevention via SQLAlchemy ORM
+- API keys secured in environment variables
 
 ## Contributing
 
@@ -285,3 +309,5 @@ For issues and questions, please open an issue in the repository.
 - Advanced analytics and reporting
 - Mobile app support
 - Cloud deployment options
+- Multi-language chatbot support
+- Custom report generation
